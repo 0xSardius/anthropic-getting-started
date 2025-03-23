@@ -1,40 +1,63 @@
-"""
-Streaming example using the Anthropic Claude API.
-This example demonstrates how to stream responses from Claude in real-time.
-"""
+from dotenv import load_dotenv
+from anthropic import Anthropic
 
-import sys
-import os
+#load environment variable
+load_dotenv()
 
-# Add the parent directory to the path so we can import the client module
-sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+#automatically looks for an "ANTHROPIC_API_KEY" environment variable
+client = Anthropic()
 
-from client import client
+with client.messages.stream(
+    messages=[
+        {
+            "role": "user",
+            "content": "Write me an essay about chivalry in the 14th century.",
+        }
+    ],
+    model="claude-3-haiku-20240307",
+    max_tokens=800,
+    temperature=0,
+) as stream:
+    print("Streaming response:")
+    print("==================")
+    # Print the response as it comes in
+    for text in stream.text_stream:
+        print(text, end="", flush=True)
+    print("\n\nStream completed.")
 
-def streaming_chat():
-    """
-    Demonstrates streaming responses from Claude.
-    """
-    message = "Write a short poem about artificial intelligence."
-    
-    print(f"Sending message to Claude: '{message}'")
-    print("\nStreaming response from Claude:")
-    
-    with client.messages.stream(
-        model="claude-3-sonnet-20240229",
-        max_tokens=300,
+stream = client.messages.create(
+    messages=[
+        {
+            "role": "user",
+            "content": "Write me a 3 word sentence, without a preamble.  Just give me 3 words",
+        }
+    ],
+    model="claude-3-haiku-20240307",
+    max_tokens=100,
+    temperature=0,
+    stream=True,
+)
+for event in stream:
+    if event.type == "content_block_delta":
+        print(event.delta.text, flush=True, end="")
+
+
+async def streaming_with_helpers():
+    async with client.messages.stream(
+        max_tokens=1024,
         messages=[
-            {"role": "user", "content": message}
-        ]
+            {
+                "role": "user",
+                "content": "Write me sonnet about orchids",
+            }
+        ],
+        model="claude-3-opus-20240229",
     ) as stream:
-        for text in stream.text_stream:
+        async for text in stream.text_stream:
             print(text, end="", flush=True)
-        
-        print("\n\nStream completed.")
-        
-        # You can also access the final message
-        final_message = stream.get_final_message()
-        print(f"\nFinal message ID: {final_message.id}")
 
-if __name__ == "__main__":
-    streaming_chat() 
+    final_message = await stream.get_final_message()
+    print("\n\nSTREAMING IS DONE.  HERE IS THE FINAL ACCUMULATED MESSAGE: ")
+    print(final_message.to_json())
+
+await streaming_with_helpers()
